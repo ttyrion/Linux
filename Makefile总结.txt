@@ -1,0 +1,104 @@
+1、概念
+Rule:
+**********************************
+
+target … : prerequisites …
+    recipe
+
+**********************************
+上面这个整体称为一个rule，生成target文件的命令部分（实际可能不生成target文件）称为recipe。
+    
+2、伪目标
+以常用的clean为例说明：
+**********************************
+
+clean :
+	rm a
+
+    **********************************
+2.1 这条规则的recipe中的命令rm不会生成一个叫clean的文件，很可能clean文件永远不存在，所以只要make clean，rm命令就一定会执行。
+2.2 如果刚好有一个clean文件存在（可能是其他模块编译生成的文件或者任意一个文件），因为clean没有依赖文件，所以那个存在的clean文件
+    就会被make当成我们要生成的目标文件，并且，它永远被认为是最新的，因而rm命令永远不会执行。
+    这显然不是我们这个clean的目的。
+此时，可以给clean加一个.PHONY声明clean是一个phony target。
+**********************************
+
+.PHONY: clean
+clean :
+	rm a
+    
+**********************************
+对于伪目标clean，当make clean的时候，它的recipe一定会被执行，不论是否已经有一个叫clean的文件存在。
+伪目标还有一个重要用途，就是生成多个目标文件：
+**********************************
+all : prog1 prog2
+.PHONY : all
+
+prog1 : prog1.o utils.o
+        cc -o prog1 prog1.o utils.o
+
+prog2 : prog2.o
+        cc -o prog2 prog2.o
+**********************************
+由于all是一个伪目标，因此它的recipe一定会被执行，同时，它的依赖条件一定会被决议。也就是说，
+不管有没有一个all文件存在或者文件多么新，prog1 prog2这两个目标文件一定会被决议（但不一定会被重新生成）。
+那么到底是不是会重新生成prog1 prog2，就看prog1 prog2自己的规则决议结果了。
+        
+3、多目标 自动化变量
+bigoutput littleoutput : text.g
+    generate text.g -$(subst output,,$@) > $@
+其中subst是make字符串替换函数：$(subst <old>,<new>,<src>)，其中的$是make函数调用约定。
+“$@”表示目标对象的集合，“$@”依次取出目标，并执于命令。
+相对于“$<”，“$<”表示依赖对象的集合。
+那么，上述规则等价于：
+bigoutput : text.g
+    generate text.g -big > bigoutput
+littleoutput : text.g
+    generate text.g -little > littleoutput
+
+4、静态模式 ： 更方便地定义多目标规则
+<targets ...>: <target-pattern>: <prereq-patterns ...>
+    <commands>
+targets标识了一个目标集合。
+target-pattern是一个应用在targets集合中的模式，表示targets集合都是能匹配target-pattern模式的。
+prereq-patterns是一个应用在集合T上的模式，生成一个依赖文件集合R。
+举例：
+objects = foo.o bar.o
+all: $(objects)
+$(objects): %.o: %.c
+    $(CC) -c $(CFLAGS) $< -o $@
+其中$(objects)目标是foo.o bar.o的集合，而应用prereq-patterns模式后，
+得到一个依赖对象集合：foo.c bar.c。
+上面的规则展开后等价于下面的规则：
+foo.o : foo.c
+$(CC) -c $(CFLAGS) foo.c -o foo.o
+bar.o : bar.c
+$(CC) -c $(CFLAGS) bar.c -o bar.o
+从上面也可以知道：自动化变量并不是简单地展开，他们跟普通变量不同。普通变量类似宏，属于必要时候直接展开的情形。
+
+再看一个例子：
+files = foo.elc bar.o lose.o
+$(filter %.o,$(files)): %.o: %.c
+    $(CC) -c $(CFLAGS) $< -o $@
+$(filter %.elc,$(files)): %.elc: %.el
+    emacs -f batch-byte-compile $<
+filter函数取出files变量中匹配%.o模式的文件作为目标集合，再应用静态模式，把原本复杂的多文件类型多目标的规则写得如此简单。
+
+5、命令出错 命令显示
+有时候对于某条命令出错，并不希望此时停止make，那么可以在命令前加一条短横线：
+clean:
+    rm a
+如上，make clean时，如果不存在a文件，make就会报错并停止。
+clean:
+    -rm a
+如上，就算a文件不存在，rm出错，make只会提示错误，但会继续执行。
+如果写成：
+clean:
+    -@rm a
+那么make只提示错误，连原命令内容也不会显示出来，就像@echo一样。
+
+
+
+
+
+
