@@ -1,5 +1,6 @@
 #include <sys/stat.h>
-#include <string>
+#include <time.h>
+#include <cstring>
 #include <iostream>
 
 std::string get_mode(mode_t mode) {
@@ -45,12 +46,29 @@ int main(int argc, char* argv[]) {
 		std::cout << "uid: " << stat_data.st_uid << std::endl;
 		std::cout << "gid: " << stat_data.st_gid << std::endl;
 		std::cout << "size: " << stat_data.st_size << std::endl;
-		std::cout << "atime: " << stat_data.st_atime << std::endl;
-		std::cout << "mtime: " << stat_data.st_mtime << std::endl;
-		std::cout << "ctime: " << stat_data.st_ctime << std::endl;
+		
+		struct tm t = {0};
+		//thread safe, some kind of lock may be used inside localtime_r.
+		localtime_r(&stat_data.st_atime, &t);
+		std::cout << "atime: " << t.tm_year + 1900 << "-" << t.tm_mon + 1 << "-" << t.tm_mday
+			               << " " << t.tm_hour << ":" << t.tm_min << ":" << t.tm_sec << std::endl;
+	
+		memset(&t, 0, sizeof(t));
+		localtime_r(&stat_data.st_mtime, &t);
+		std::cout << "mtime: " << t.tm_year + 1900 << "-" << t.tm_mon + 1 << "-" << t.tm_mday
+			               << " " << t.tm_hour << ":" << t.tm_min << ":" << t.tm_sec << std::endl;
+
+		memset(&t, 0, sizeof(t));
+		localtime_r(&stat_data.st_ctime, &t);
+		std::cout << "ctime: " << t.tm_year + 1900 << "-" << t.tm_mon + 1 << "-" << t.tm_mday
+			               << " " << t.tm_hour << ":" << t.tm_min << ":" << t.tm_sec << std::endl;
 		std::cout << "best I/O block size: " << stat_data.st_blksize << std::endl;
 		std::cout << "disk blocks: " << stat_data.st_blocks << std::endl;
 	}
 
 	return 0;
 }
+
+
+
+
