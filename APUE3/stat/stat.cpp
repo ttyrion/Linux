@@ -38,7 +38,34 @@ int main(int argc, char* argv[]) {
 
 	struct stat stat_data;
 	if (lstat(argv[1], &stat_data) == 0) {
+		//st_mode includes:
+		//* file type
+		//* access permissions
+		//* set-user-ID/set-group-ID bit which affect the euid and egid
 		std::cout << "type: " << get_mode(stat_data.st_mode) << std::endl;
+	
+		//set-user-ID/set-group-ID bit
+		std::cout << "set-user-id bit: ";
+		stat_data.st_mode & S_ISUID ? std::cout << "set" << std::endl : std::cout << "-" << std::endl;
+		std::cout << "set-group-id bit: ";
+		stat_data.st_mode & S_ISGID ? std::cout << "set" << std::endl : std::cout << "-" << std::endl;
+		
+		//permission
+		std::cout << "permission: ";
+		//user permission
+		stat_data.st_mode & S_IRUSR ? std::cout << "r" : std::cout << "-";
+		stat_data.st_mode & S_IWUSR ? std::cout << "w" : std::cout << "-";
+		stat_data.st_mode & S_IXUSR ? std::cout << "x" : std::cout << "-";
+		//group permission
+		stat_data.st_mode & S_IRGRP ? std::cout << "r" : std::cout << "-";
+		stat_data.st_mode & S_IWGRP ? std::cout << "w" : std::cout << "-";
+		stat_data.st_mode & S_IXGRP ? std::cout << "x" : std::cout << "-";
+		//others permission
+		stat_data.st_mode & S_IROTH ? std::cout << "r" : std::cout << "-";
+		stat_data.st_mode & S_IWOTH ? std::cout << "w" : std::cout << "-";
+		stat_data.st_mode & S_IXOTH ? std::cout << "x" : std::cout << "-";
+		std::cout << std::endl;
+
 		std::cout << "inode: " << stat_data.st_ino << std::endl;
 		std::cout << "dev: " << stat_data.st_dev << std::endl;
 		std::cout << "rdev: " << stat_data.st_rdev << std::endl;
