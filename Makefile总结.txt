@@ -55,6 +55,9 @@ bigoutput : text.g
     generate text.g -big > bigoutput
 littleoutput : text.g
     generate text.g -little > littleoutput
+注意：一般情况下，$<自动化变量表示的是依赖文件中的第一个。
+而当依赖文件是以%模式定义的时候，它表示的是一个集合，并且会一个一个地取出依赖文件。
+可以参考stat/Makefile中make stat和sugid两个目标文件时的问题。
 
 4、静态模式 ： 更方便地定义多目标规则
 <targets ...>: <target-pattern>: <prereq-patterns ...>
@@ -96,57 +99,6 @@ clean:
 clean:
     -@rm a
 那么make只提示错误，连原命令内容也不会显示出来，就像@echo一样。
-
-6、权限，设置用户ID位， 设置组ID位
-一个进程的权限，默认情况下是当前用户的权限，具体地说如下：
-每个进程关联了6个以上的ID，这些ID会影响进程的权限等方面。
-real user ID 、real group ID ： 这两个id标识了我们是谁，它们是在我们登录系统时从password文件中取出的，一般情况下，在一个登录会话中是不变的。
-effective user ID、effective group ID 、supplementary group IDs： 用户访问文件的时候进行权限检查。
-saved set-user-ID、saved set-group-ID ： saved by exec functions，是euid和egid的一份拷贝。
-从上面可以看出进程的euid和egid可能跟用户id和用户组id不同:
-6.1 一般情况下，启动一个进程，进程的euid和egid就是用户的uid和gid，所以进程权限就看用户身份。
-6.2 某些情况下，进程权限可能跟用户权限不同。下面说明。
-比如passwd命令让一个普通用户可以有权限更改自己的密码，尽管该用户没有/etc/passwd(或者/etc/shadow)的写权限。
-passwd是怎么达到这样的目的呢？
-原理如下：文件属性的st_mode字段中有两个标志位，且称为set-user-id，set-group-id。
-如果程序文件的set-user-id标志位被设置有效，那么进程的有效用户id会被设置为该程序文件的所有者id，而不是启动这个进程的用户id。
-set-group-id同理。
-
-实际验证过程如下：
-以root身份在当前用户主目录下创建了一个root目录和~/root/permission.txt文件，文件的属性如下：
--rw-r--r-- 1 root root 68 May 18 11:14 /home/marting/root/permission.txt
-说明当前用户对此文件是没有写权限的。
-另有一个程序sugid，会append某些字符串到一个文件中：
-> ls -l ./sugid
--rwxr-xr-x 1 root    root  17800 May 18 13:57 sugid
-换用普通用户身份执行命令：
-> ./sugid  ~/root/permission.txt
-ERROR: open /home/marting/root/permission.txt failed.
-标识sugid进程根本没权限以写方式打开这个文件，尽管sugid的文件所有者是root（通过chown改的）。
-用自己写的stat来查看sugid的属性：
-> ./stat ./sugid
-type: regular
-set-user-id bit: -
-set-group-id bit: -
-permission: rwxr-xr-x （这个是sugid文件本身（被访问）的权限）
-****(其他信息并未列出)
-上面的信息标识sugid文件的设置用户id位和设置组id位均没有被设置。
-> sudo chmod u+s sugid
-> ls -l sugid
--rwsr-xr-x 1 root root 17800 May 18 13:57 sugid
-通过chmod设置了sugid的设置用户id位以后，该文件的对应权限位已经变为"s"了。
-接着执行命令查看sugid的属性：
-> ./stat ./sugid
-type: regular
-set-user-id bit: set
-set-group-id bit: -
-permission: rwxr-xr-x
-***
-可见，sugid文件的设置用户ID为已经被设置了。
-接着以普通用户身份执行命令：
-> ./sugid  ~/root/permission.txt
-没有任何错误输出，这个时候~/root/permission.txt文件已经被追加了一些内容。
-可见，这个时候一个普通用户启动的进程，有了root的权限。
 
 
 
