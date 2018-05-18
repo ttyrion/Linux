@@ -5,8 +5,8 @@ real user ID 、real group ID ： 这两个id标识了我们是谁，它们是�
 effective user ID、effective group ID 、supplementary group IDs： 用户访问文件的时候进行权限检查。
 saved set-user-ID、saved set-group-ID ： saved by exec functions，是euid和egid的一份拷贝。
 从上面可以看出进程的euid和egid可能跟用户id和用户组id不同:
-6.1 一般情况下，启动一个进程，进程的euid和egid就是用户的uid和gid，所以进程权限就看用户身份。
-6.2 某些情况下，进程权限可能跟用户权限不同。下面说明。
+1.1 一般情况下，启动一个进程，进程的euid和egid就是用户的uid和gid，所以进程权限就看用户身份。
+1.2 某些情况下，进程权限可能跟用户权限不同。下面说明。
 比如passwd命令让一个普通用户可以有权限更改自己的密码，尽管该用户没有/etc/passwd(或者/etc/shadow)的写权限。
 passwd是怎么达到这样的目的呢？
 原理如下：文件属性的st_mode字段中有两个标志位，且称为set-user-id，set-group-id。
