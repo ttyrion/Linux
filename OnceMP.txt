@@ -126,6 +126,54 @@ access time : 文件最后一次被访问的时间。
 touch命令可以修改文件的mtime，ctime，atime。
 touch <file> 可以把文件的三个时间属性都设置为当前时间。也可以通过参数设置某个时间属性为某个时间值。
 
+10、grep
+grep可以加一些参数，实现不同方式的匹配，包括正则。比如：
+10.1 grep -n "key" sample.txt（-n会显示出行号）
+10.2 grep -vn "key" sample.txt（-v, --invert-match : 反转匹配，就是返回不匹配的内容）
+10.3 grep -in "key" sample.txt（-i, --ignore-case : 忽略大小写匹配）
+还可以利用[]来匹配集合，比如：
+10.4 grep -n "s[us]" sample.txt (匹配su ss)
+集合还能反向匹配：
+10.4 grep -n "s[^u]" sample.txt (匹配s*, 但是不匹配su)
+^是对整个[]集合起作用的，比如：
+10.5 grep -n "[^+ s]u" sample.txt (不匹配u前面有+或者空格或者s的行)
+10.6 grep -n "[^a-z]u" sample.txt (不匹配u前面有小写字符的行)
+grep还有一些特殊关键词，比如：
+[:alnum:] 代表英文大小写字符及数字，亦卲 0-9, A-Z, a-z
+[:alpha:] 代表任何英文大小写字符，亦卲 A-Z, a-z
+[:blank:] 代表穸格键不 [Tab] 按键两者
+[:cntrl:] 代表键盘上面癿控制按键，亦卲包括 CR, LF, Tab, Del.. 等等
+[:digit:] 代表数字而已，亦卲 0-9
+[:graph:] 除了穸格符 (穸格键不 [Tab] 按键) 外癿其他所有按键
+[:lower:] 代表小写字符，亦卲 a-z
+[:print:] 代表任何可以被打印出杢癿字符
+[:punct:] 代表标点符号 (punctuation symbol)，亦卲： " ' ? ! ; : # $...
+[:upper:] 代表大写字符，亦卲 A-Z
+[:space:] 任何会产生穸白癿字符，包括穸格键, [Tab], CR 等等
+[:xdigit:] 代表 16 迚位癿数字类垄，因此包括： 0-9, A-F, a-f 癿数字不字符
+也就是说：
+grep -n "[^[:lower:]]u" sample.txt (不匹配u前面有小写字符的行)
+这个跟grep -n "[^a-z]u" sample.txt是一样的。
+grep -n "[^+[:lower:]]u" sample.txt 就表示不匹配u前面有小写字符或者+符的行
+
+10.7 ^还有和上面很接近确大不相同的意义：
+grep -n "^s" sample.txt (这里匹配以字母s开头的行，这里没有[]了，因此^也不再表示反向匹配，而是行首的意思)
+不过，这个意义的^依然可以跟集合一起合作：
+grep -n "^[a-z]" sample.txt  (这里匹配以任意小写字母开头的行)
+同样的，还有行尾的$字符：
+grep -n "s$" sample.txt (匹配行尾以s结尾的行，Windows上的文本文件，结尾是有特殊字符的)
+那么，结合行首和行尾字符，就可以查找空行：
+grep -n '^$' sample.txt
+
+
+
+
+
+
+
+
+
+
 
 
 
