@@ -236,9 +236,27 @@ openSUSE系统默认情况下这个CREATE_HOME的值是no，因此新创建的�
      这个时候需要用passwd命令给用户设置密码： passwd username
      passwd也有几个参数，可供设置密码失效日期等。
 
+13、bash中的多任务
+在bash中执行一条命令，其实就是创建一个子进程以完成某个任务。
+bash中可以同时执行多个任务，只不过是只有一个是前景（foreground）任务，其他都是背景（background）任务。
 
+13.1 将一个命令作为背景任务运行：只需要在命令最后加一个"&"。
+不过这里会有一个问题，如果那条命令执行的时候会输出到stdout或stderr，那么bash交互环境还是会被干扰。
+这个时候可以把命令的stdout，stderr都重定向到临时文件中：make > /tmp/make.log 2> /tmp/makeerr.log &
 
+13.2 ctrl + z 将当前执行的任务切换到背景，这个任务会进入Stopped状态。
+比如，假设当前正在用vi编辑文件，按下ctrl + z：
+[1]+  Stopped                 vi /etc/passwd
+这个时候bash又可以进行别的任务，我来执行一个man，查看lstat的man page。没有退出man，直接再按下ctrl + z：
+这个时候有两个背景任务了。输入jobs -l（-l会列出pid）查看背景任务：
+[1]-  Stopped                 vi /etc/passwd
+[2]+  Stopped                 man lstat
+这个时候可以看到两个背景任务，并且都是Stopped状态，+表示最近一个背景任务，-表示次之，如果有三个以上任务，就只有最近的两个任务会有+或者-。
 
+13.3 把背景任务切换到前景中： fg number。
+fg命令可以把number序号对应的背景任务切换到前景中。
+
+13.4 把背景任务切换到Running的状态： bg number。
 
 
 
