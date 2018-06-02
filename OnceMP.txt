@@ -191,9 +191,46 @@ cat /etc/passwd | awk '{FS=":"} $4==100 {print $0}' (注意，awk的条件运算
 到这里，可以利用上面的知识达到如下需求，比如说，我想列出当前源码目录，除了一个名为TCP的目录：
 ls -l | grep "^d" | awk '$9 != "TCP" {print $9}'
 
+12、用户管理useradd, passwd
+先了解有几个相关的文档：
+12.1 /etc/passwd : 这个文件现在有点歧义了，其实与用户密码倒是没什么关系，是管理uid和gid的。
+                   这个文件每行的第二个字段历史上曾经会存储密码，但是现在密码已经放到/etc/shadow中了。
+                   看一下文件属性:
+                   -rw-r--r-- 1 root root   2378 Jun  2 15:25 /etc/passwd
+                   -rw-r----- 1 root shadow 1200 Jun  2 15:25 /etc/shadow
+                   就知道为什么密码不适合放在/etc/passwd中了。
+12.2 /etc/shadow : 密码管理文件。
+                   这个文件的每一行的第二个字段存储密码。但是新建立的用户（还没设置密码）处于锁定期间时，密码这一字段是一个"!"，表示用户是不能登录的。
+                   这个文件的其他字段基本是表示密码有效期，过期时间，过期警告相关的信息。
+12.3 /etc/group :  这个文件存储群组相关信息，比如: "users:x:100:"
+                   其中表示群组名字，群组密码，群组id（gid），以及群组内用户（openSUSE似乎没有写群组密码和组内用户信息）。
+这里关键还是passwd文件，其他相关数据都是根据passwd中的数据去查询相关数据的。比如说：
+passwd中记录了用户名和uid和gid。系统可以根据uid去查shadow文件里面的用户密码，根据gid去查group文件中组信息。
 
+接下来是用户管理：useradd和passwd。
+useradd命令参数常用的有：
+-u ：后面接癿是 UID ，是一组数字。直接挃定一个特定癿 UID 给这个账号
+-g ：后面接的那个组名（或者gid）就是initial group（用户登录即拥有该组的权限），该群组的GID会被放置到/etc/passwd的第四个字段内。
+-d ：指定某个目录成为HOME目录，而不用默认值。务必使用绝对路径。
+-e ：后面接一个日期，格式为"YYYY-MM-DD", 此项目可写入/etc/shadow第八个字段， 即该账号失效日。
+当然也可以完全用默认的参数值创建一个用户： useradd username。
+但是就需要了解一下，默认情况下，用户会怎么创建了。useradd的默认参数值可以用useradd -D列出来。其实列出来的内容就是以下文档的内：
 
+12.4 /etc/default/useradd : useradd命令默认参数值。
+# useradd defaults file
+GROUP=100
+HOME=/home
+INACTIVE=-1
+EXPIRE=
+SHELL=/bin/bash
+SKEL=/etc/skel
+CREATE_MAIL_SPOOL=yes
+比如HOME指定了一个用户的HOME目录的父目录。GROUP指定了新创建用户的初始组ID。
+除了上面这几个基本设置外，还有其他UID、GID以及密码参数等，也有默认参考值。就是以下文档的内容：
 
+12.5 /etc/login.defs : 这个目录也有很多默认设置值，比如说，创建一个用户，是否默认添加HOME目录（/home/name）。这是该文档里面的CREATE_HOME的值决定的。
+openSUSE系统默认情况下这个CREATE_HOME的值是no，因此新创建的用户默认情况下是不创建HOME目录的，但是该为yes以后，就会默认给新用户创建HOME目录。
+改配置值，就用到了vi的搜索，在命令模式下，输入"/",然后输入关键词后ENTER，即可跳转到指定关键词位置。
 
 
 
