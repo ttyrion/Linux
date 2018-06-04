@@ -19,8 +19,14 @@ namespace apue {
 			_exit(127);
 		}
 		else {
+            /*
+                Return value:
+                1. returns the process ID (a positive value) of the child whose state has changed on calling successfully.
+                2. returns 0 if WNOHANG was specified and one or more child(ren) specified by pid exist, but have not yet changed state.
+                3. returns -1 on error.
+            */
 			while(waitpid(pid, &status, 0) < 0) { //waitpid() error
-				if(errno != EINTR) {
+				if(errno != EINTR) { //EINTR: waitpid() was interrupted by a signal. The value of *status_ptr is undefined.
 					status = -1; //error other than EINTR from waitpid()
 					break;
 				}
