@@ -244,7 +244,7 @@ bash中可以同时执行多个任务，只不过是只有一个是前景（fore
 不过这里会有一个问题，如果那条命令执行的时候会输出到stdout或stderr，那么bash交互环境还是会被干扰。
 这个时候可以把命令的stdout，stderr都重定向到临时文件中：make > /tmp/make.log 2> /tmp/makeerr.log &
 
-13.2 ctrl + z 将当前执行的任务切换到背景，这个任务会进入Stopped状态。
+13.2 ctrl + z (其实是给进程发送了一个SIGSTOP信号)将当前执行的任务切换到背景，这个任务会进入Stopped状态。
 比如，假设当前正在用vi编辑文件，按下ctrl + z：
 [1]+  Stopped                 vi /etc/passwd
 这个时候bash又可以进行别的任务，我来执行一个man，查看lstat的man page。没有退出man，直接再按下ctrl + z：
