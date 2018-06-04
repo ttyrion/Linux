@@ -258,5 +258,7 @@ fg命令可以把number序号对应的背景任务切换到前景中。
 
 13.4 把背景任务切换到Running的状态： bg number。
 
+14、#!/usr/bin/python3.4: No such file or directory
+
 
 
