@@ -274,5 +274,12 @@ fg命令可以把number序号对应的背景任务切换到前景中。
 cat source.py | tail -n +2 >> dest.py
 这条命令会把source.py第二行以后的内容复制并追加到dest.py文件。
 
+15. sudo zypper in virtualbox
+After installing virtualbox ,it cannot be started.
+We should add the user to the group "vboxusers":
+Yast->Security and Users ->User and Group Management : Edit our user config and check the "vboxusers" in "Additional Groups".
+
+
+
 
 
