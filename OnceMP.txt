@@ -259,6 +259,17 @@ fg命令可以把number序号对应的背景任务切换到前景中。
 13.4 把背景任务切换到Running的状态： bg number。
 
 14、#!/usr/bin/python3.4: No such file or directory
+写python脚本，出现这个错误，实际上/usr/bin/python3.4是存在的！
+其实出错原因是：第一行里面有些不可见字符，影响了shell对第一行的解析。
+比如说这个文件可能是Windows系统产生的（比如用wine环境下的notepad++建立的文件，行尾结束符与linux不一样）。
+或者，比如说我自己这里是用notepadqq建立的一个文件，在文件开头多了三个字节的数据（奇怪的是之后建立文件又没遇到这样的情况）。
+可以用cat -A 或者od -c命令来查看文件，就能发现第一行确实多了一些不可见字符。
+网上说用vi打开文件，并且命令行模式输入set ff=unix，然后wq保存即可。我这里试过后依然不行。
+最后的解决办法：
+用vi新建一个文件，写入第一行#!/usr/bin/python3.4。
+剩下的脚本内容可用GUI编辑器复制过去，当然命令行也是可以的：
+cat source.py | tail -n +2 >> dest.py
+这条命令会把source.py第二行以后的内容复制并追加到dest.py文件。
 
 
 
