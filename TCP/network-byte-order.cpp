@@ -15,26 +15,26 @@ The answer is supposed to be no.
 */
 
 int main(int argc, char* argv[]) {
-	int i = 0x01020304;
-	//print_mem((char*)&i, sizeof(i));
-	
-	char* p = (char*)&i;
-	char c = *p;
-	if(c == 01) {
-		printf("big endian.\n");
-	}
-	else if(c == 04) {
-		printf("little endian.\n");
-	}
-	
-	return 0;
+    int i = 0x01020304;
+    //print_mem((char*)&i, sizeof(i));
+    
+    char* p = (char*)&i;
+    char c = *p;
+    if(c == 01) {
+        printf("big endian.\n");
+    }
+    else if(c == 04) {
+        printf("little endian.\n");
+    }
+    
+    return 0;
 }
 
 void print_mem(char* start, int bytes) {
-	for(int i = 0; i < bytes; ++i) {
-		printf("%.2x", start[i]);
-	}
-	printf("\n");
+    for(int i = 0; i < bytes; ++i) {
+        printf("%.2x", start[i]);
+    }
+    printf("\n");
 }
 
 
