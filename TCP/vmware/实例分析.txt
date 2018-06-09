@@ -1,0 +1,163 @@
+1、利用VMWare模拟网络环境
+1.1 安装VMWare Workstation
+安装完VMware后，我们会发现在网络连接里将多出两块虚拟Ethernet网卡，即：
+VMWare Network Adapter VMnet1 和 VMWare Network Adapter VMnet8。
+ipconfig -all 可以看到他们的信息如下：
+以太网适配器 VMware Network Adapter VMnet1:
+
+   连接特定的 DNS 后缀 . . . . . . . :
+   描述. . . . . . . . . . . . . . . : VMware Virtual Ethernet Adapter for VMnet1
+   物理地址. . . . . . . . . . . . . : 00-50-56-C0-00-01
+   DHCP 已启用 . . . . . . . . . . . : 是
+   自动配置已启用. . . . . . . . . . : 是
+   本地链接 IPv6 地址. . . . . . . . : fe80::89ad:5e88:fc31:3fac%12(首选)
+   IPv4 地址 . . . . . . . . . . . . : 192.168.159.1(首选)
+   子网掩码  . . . . . . . . . . . . : 255.255.255.0
+   获得租约的时间  . . . . . . . . . : 2018年6月6日 17:29:33
+   租约过期的时间  . . . . . . . . . : 2018年6月6日 17:59:33
+   默认网关. . . . . . . . . . . . . :
+   DHCP 服务器 . . . . . . . . . . . : 192.168.159.254
+   DHCPv6 IAID . . . . . . . . . . . : 268456022
+   DHCPv6 客户端 DUID  . . . . . . . : 00-01-00-01-21-51-86-B7-D8-CB-8A-03-24-8B
+   DNS 服务器  . . . . . . . . . . . : fec0:0:0:ffff::1%1
+                                       fec0:0:0:ffff::2%1
+                                       fec0:0:0:ffff::3%1
+   TCPIP 上的 NetBIOS  . . . . . . . : 已启用
+
+以太网适配器 VMware Network Adapter VMnet8:
+
+   连接特定的 DNS 后缀 . . . . . . . :
+   描述. . . . . . . . . . . . . . . : VMware Virtual Ethernet Adapter for VMnet8
+   物理地址. . . . . . . . . . . . . : 00-50-56-C0-00-08
+   DHCP 已启用 . . . . . . . . . . . : 是
+   自动配置已启用. . . . . . . . . . : 是
+   本地链接 IPv6 地址. . . . . . . . : fe80::bdfb:9c60:fd5d:3c70%5(首选)
+   IPv4 地址 . . . . . . . . . . . . : 192.168.59.1(首选)
+   子网掩码  . . . . . . . . . . . . : 255.255.255.0
+   获得租约的时间  . . . . . . . . . : 2018年6月6日 17:29:39
+   租约过期的时间  . . . . . . . . . : 2018年6月6日 17:59:39
+   默认网关. . . . . . . . . . . . . :
+   DHCP 服务器 . . . . . . . . . . . : 192.168.59.254
+   DHCPv6 IAID . . . . . . . . . . . : 285233238
+   DHCPv6 客户端 DUID  . . . . . . . : 00-01-00-01-21-51-86-B7-D8-CB-8A-03-24-8B
+   DNS 服务器  . . . . . . . . . . . : fec0:0:0:ffff::1%1
+                                       fec0:0:0:ffff::2%1
+                                       fec0:0:0:ffff::3%1
+   主 WINS 服务器  . . . . . . . . . : 192.168.59.2
+   TCPIP 上的 NetBIOS  . . . . . . . : 已启用
+   
+1.1.1 物理地址
+他们的mac地址分别是：00-50-56-C0-00-01，00-50-56-C0-00-08。
+MAC地址的前三个字节表示厂商，而实际上00-50-56是被分配给了WMWare公司的。
+另外还有00:0C:29，比如我的一台虚拟机的MAC地址是：00:0C:29:73:D5:39。
+1.1.2 IP地址
+首先，可以看到这两个IP地址都在范围128.0.0.0-191.255.255.255之内，也就是他们都说B类地址（后16位为主机号）。
+并且，用了默认的子网掩码，也就是这两个虚拟网卡位于同一网络内，没有再分子网。
+
+1.2 模式
+1.2.1 桥接模式
+这个模式，是利用VMnet0虚拟交换机来连接虚拟机的虚拟网卡和host机物理网卡（交换机和路由器区别可参考：https://www.cnblogs.com/Lynn-Zhang/articles/5754336.html）。
+
+比如我的host机上：
+IPv4 地址 . . . . . . . . . . . . : 10.5.139.79(首选)
+子网掩码  . . . . . . . . . . . . : 255.255.254.0
+
+而一台虚拟机上：
+eth0      Link encap:Ethernet  HWaddr 00:0C:29:73:D5:39  
+          inet addr:10.5.138.102  Bcast:10.5.139.255  Mask:255.255.254.0
+          inet6 addr: fe80::20c:29ff:fe73:d539/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:3540852 errors:0 dropped:8890 overruns:0 frame:0
+          TX packets:21949 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:384273004 (366.4 Mb)  TX bytes:2003976 (1.9 Mb)
+这两个IP地址都是内网地址：
+由于分配不合理以及IPv4协议本身存在的局限，现在互联网的IP地址资源越来越紧张。
+为了解决这一问题，IANA将A、B、C类IP地址的一部分保留下来，留作局域网使用：
+A类网：10.0.0.0~10.255.255.255
+B类网: 172.16.0.0~172.31.255.255
+C类网: 192.168.0.0~192.168.255.255
+
+可以看到虚拟机被分配到了一个宿主机所在网络的IP地址，并且根据子网掩码，可知这台虚拟机和宿主机处于同一子网（子网号138）内。
+也就是说：Bridged Network中，虚拟机占用了一个宿主机网络的IP地址。
+但是默认情况下虚拟机还是ping不通win10宿主机。
+原因是：ping程序是发送一份ICMP回显请求报文给目标机，并等待返回ICMP回显应答。而，win10（win7）出于安全考虑是不允许外部主机对其进行Ping测试的。
+打开防火墙的高级设置，找到“入站规则”，查找到“文件和打印机共享(回显请求 - ICMPv4-In)”这一条规则，双击可以看到，其实这条规则是没被启用的。
+因此宿主机才ping不通。那么启动这条规则，就可以让虚拟机ping通win10宿主机。
+
+
+1.2.2 NAT模式
+这个模式中，虚拟机系统的虚拟网卡连接到虚拟的VMnet8网关上，同时连到VMnet8的，还有一个虚拟的DHCP服务器（宿主机上的VMware DHCP Service），
+以及一个虚拟的DNS服务器（宿主机上的VMware NAT Service）。其中，VMware NAT Service还充当默认网关的作用，并且，只有这个默认网关是和宿主机所在的外部网络连接的。
+虚拟机的系统位于一个虚拟网络中，由虚拟的DHCP服务器分配合适的虚拟网络中的IP地址，通常，这会是一个C类地址:
+<net>.3 - <net>.127 被用于静态IP地址分配
+<net>.128 - <net>.254 被用于动态IP地址分配
+<net>.1 ： 保留的IP地址，是给VMnet8网关的。
+<net>.2 ： 保留的IP地址，是给NAT device（默认网关）的。
+
+在虚拟机中输入ifconfig查看网卡信息：
+eth0      Link encap:Ethernet  HWaddr 00:0C:29:73:D5:39  
+          inet addr:192.168.59.137  Bcast:192.168.59.255  Mask:255.255.255.0
+          inet6 addr: fe80::20c:29ff:fe73:d539/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:3018 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:233 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:230414 (225.0 Kb)  TX bytes:30475 (29.7 Kb)
+
+在虚拟机中输入route（或netstat -r）命令可以查看网关信息：
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+default         192.168.59.2    0.0.0.0         UG    0      0        0 eth0
+192.168.59.0    *               255.255.255.0   U     0      0        0 eth0
+
+结合上面在宿主机中查看的ip信息，可以看到，在我这里：
+NAT虚拟网络网络号是192.168.59.0；
+网关WMnet8的地址是192.168.59.1；
+虚拟网络中的虚拟DNS服务器（实际上是DNS代理），也是默认网关，地址是192.168.59.2；
+虚拟的DHCP服务器的地址是192.168.59.254；
+虚拟的DHCP服务器给当前虚拟机分配的IP地址是192.168.59.137。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
