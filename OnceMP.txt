@@ -299,5 +299,6 @@ kernel会将开机信息存储在ring buffer中。您若是开机时来不及查
 可以看到，系统启动时把eth0重命名为了ens33。
 至于怎么重新改回eth0，参考https://www.itzgeek.com/how-tos/mini-howtos/change-default-network-name-ens33-to-old-eth0-on-ubuntu-16-04.html。
 
-
-
+17、没有ifconfig（openSUSE）
+系统没有ifconfig命令，网上说安装net-tools.x86_64即可，但是我系统提示已经安装，仍然不能用ifconfig。
+输入cnf ifconfig，系统提示需要安装net-tools-deprecated，安装后即可执行命令ifconfig。
