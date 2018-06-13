@@ -302,3 +302,16 @@ kernel会将开机信息存储在ring buffer中。您若是开机时来不及查
 17、没有ifconfig（openSUSE）
 系统没有ifconfig命令，网上说安装net-tools.x86_64即可，但是我系统提示已经安装，仍然不能用ifconfig。
 输入cnf ifconfig，系统提示需要安装net-tools-deprecated，安装后即可执行命令ifconfig。
+
+18、利用bc进行进制转换
+bc除了支持交互模式，也支持处理文件。因此自然想到用管道。
+把63转成二进制：
+echo "obase=2;63" | bc
+把63转成十六进制：
+echo "obase=16;63" | bc
+
+
+
+
+
+
