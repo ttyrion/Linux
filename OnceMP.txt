@@ -4,6 +4,9 @@ https://elixir.bootlin.com/linux/v4.0.4/source/fs/stat.c
 
 2、Linux下替代notepad++的编辑器：notepadqq。
 设置Appearance中的Color scheme为liquibyte，编辑器看起来十分漂亮。
+
+3、http://www.kohala.com/start/
+这里有APUE和UNP的源码以及错误内容更正。
 */
 
 1、权限，设置用户ID位， 设置组ID位
