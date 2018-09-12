@@ -1,5 +1,6 @@
 #include "Server.h"
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <iostream>
@@ -51,7 +52,9 @@ void Server::Run(const std::string& service) {
         sockaddr_in peer;
         socklen_t peer_addr_length = sizeof(peer);
         int peer_sock = accept(listening_sock, (sockaddr*)&peer, &peer_addr_length);
-        std::string buf("Hello, welcome here.");
+        std::string buf("Hello, welcome here.\n");
+        char* peer_addr = inet_ntoa(peer.sin_addr);
+        std::cout << peer_addr << " connected." << std::endl;
         send(peer_sock, buf.c_str(), buf.length(), 0);
         close(peer_sock);
     }

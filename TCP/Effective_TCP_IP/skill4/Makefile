@@ -6,8 +6,9 @@ CURRENT_DIR = $(shell pwd)
 BIN_DIR = $(CURRENT_DIR)/build/bin
 TEMP_DIR = $(CURRENT_DIR)/build/obj
 BIN := $(BIN_DIR)/server
+CLIENT_BIN = $(BIN_DIR)/client
 
-export CC MAKE TEMP_DIR BIN
+export CC MAKE TEMP_DIR BIN CLIENT_BIN
 
 SOURCEs = ${wildcard *.cpp}
 CURRENT_OBJs = ${patsubst %.cpp, $(TEMP_DIR)/%.o, $(SOURCEs)}
