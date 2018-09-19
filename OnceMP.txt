@@ -2,10 +2,13 @@
 1、这里可以看到各个版本内核代码，可以很方便地看到不同版本内核的同一代码文件，方便对比；并且还有访问函数定义和结构体定义的超链接：
 https://elixir.bootlin.com/linux/v4.0.4/source/fs/stat.c
 
-2、Linux下替代notepad++的编辑器：notepadqq。
+2、这里可以在线方便地浏览Glibc的代码：
+https://code.woboq.org/
+
+3、Linux下替代notepad++的编辑器：notepadqq。
 设置Appearance中的Color scheme为liquibyte，编辑器看起来十分漂亮。
 
-3、http://www.kohala.com/start/
+4、http://www.kohala.com/start/
 这里有APUE和UNP的源码以及错误内容更正。
 */
 
