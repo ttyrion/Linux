@@ -428,141 +428,140 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
   unsigned int signals = atomic_load_acquire (cond->__data.__g_signals + g);
 
   do
+  {
+    while (1)
     {
-      while (1)
-	{
-	  /* Spin-wait first.
-	     Note that spinning first without checking whether a timeout
-	     passed might lead to what looks like a spurious wake-up even
-	     though we should return ETIMEDOUT (e.g., if the caller provides
-	     an absolute timeout that is clearly in the past).  However,
-	     (1) spurious wake-ups are allowed, (2) it seems unlikely that a
-	     user will (ab)use pthread_cond_wait as a check for whether a
-	     point in time is in the past, and (3) spinning first without
-	     having to compare against the current time seems to be the right
-	     choice from a performance perspective for most use cases.  */
-	  unsigned int spin = maxspin;
-	  while (signals == 0 && spin > 0)
-	    {
-	      /* Check that we are not spinning on a group that's already
-		 closed.  */
-	      if (seq < (__condvar_load_g1_start_relaxed (cond) >> 1))
-		goto done;
+      /* Spin-wait first.
+        Note that spinning first without checking whether a timeout
+        passed might lead to what looks like a spurious wake-up even
+        though we should return ETIMEDOUT (e.g., if the caller provides
+        an absolute timeout that is clearly in the past).  However,
+        (1) spurious wake-ups are allowed, (2) it seems unlikely that a
+        user will (ab)use pthread_cond_wait as a check for whether a
+        point in time is in the past, and (3) spinning first without
+        having to compare against the current time seems to be the right
+        choice from a performance perspective for most use cases.  */
+      unsigned int spin = maxspin;
+      while (signals == 0 && spin > 0)
+      {
+        /* Check that we are not spinning on a group that's already
+        closed.  */
+        if (seq < (__condvar_load_g1_start_relaxed (cond) >> 1))
+          goto done;
 
-	      /* TODO Back off.  */
+        /* TODO Back off.  */
 
-	      /* Reload signals.  See above for MO.  */
-	      signals = atomic_load_acquire (cond->__data.__g_signals + g);
-	      spin--;
-	    }
+        /* Reload signals.  See above for MO.  */
+        signals = atomic_load_acquire (cond->__data.__g_signals + g);
+        spin--;
+      }
 
-	  /* If our group will be closed as indicated by the flag on signals,
-	     don't bother grabbing a signal.  */
-	  if (signals & 1)
-	    goto done;
+      /* If our group will be closed as indicated by the flag on signals,
+        don't bother grabbing a signal.  */
+      if (signals & 1)
+        goto done;
 
-	  /* If there is an available signal, don't block.  */
-	  if (signals != 0)
-	    break;
+      /* If there is an available signal, don't block.  */
+      if (signals != 0)
+        break;
 
-	  /* No signals available after spinning, so prepare to block.
-	     We first acquire a group reference and use acquire MO for that so
-	     that we synchronize with the dummy read-modify-write in
-	     __condvar_quiesce_and_switch_g1 if we read from that.  In turn,
-	     in this case this will make us see the closed flag on __g_signals
-	     that designates a concurrent attempt to reuse the group's slot.
-	     We use acquire MO for the __g_signals check to make the
-	     __g1_start check work (see spinning above).
-	     Note that the group reference acquisition will not mask the
-	     release MO when decrementing the reference count because we use
-	     an atomic read-modify-write operation and thus extend the release
-	     sequence.  */
-	  atomic_fetch_add_acquire (cond->__data.__g_refs + g, 2);
-	  if (((atomic_load_acquire (cond->__data.__g_signals + g) & 1) != 0)
-	      || (seq < (__condvar_load_g1_start_relaxed (cond) >> 1)))
-	    {
-	      /* Our group is closed.  Wake up any signalers that might be
-		 waiting.  */
-	      __condvar_dec_grefs (cond, g, private);
-	      goto done;
-	    }
+      /* No signals available after spinning, so prepare to block.
+        We first acquire a group reference and use acquire MO for that so
+        that we synchronize with the dummy read-modify-write in
+        __condvar_quiesce_and_switch_g1 if we read from that.  In turn,
+        in this case this will make us see the closed flag on __g_signals
+        that designates a concurrent attempt to reuse the group's slot.
+        We use acquire MO for the __g_signals check to make the
+        __g1_start check work (see spinning above).
+        Note that the group reference acquisition will not mask the
+        release MO when decrementing the reference count because we use
+        an atomic read-modify-write operation and thus extend the release
+        sequence.  */
+      
+      //The "acquire MO" ensures that the current waiter can see the group closed flag being set by
+      // the fetch-or operation in __condvar_quiesce_and_switch_g1
+      atomic_fetch_add_acquire (cond->__data.__g_refs + g, 2);
+      // check the group closed flag, if set, do not block
+      if (((atomic_load_acquire (cond->__data.__g_signals + g) & 1) != 0)
+          || (seq < (__condvar_load_g1_start_relaxed (cond) >> 1)))
+      {
+        /* Our group is closed.  Wake up any signalers that might be waiting.  */
+        __condvar_dec_grefs (cond, g, private);
+        goto done;
+      }
 
-	  // Now block.
-	  struct _pthread_cleanup_buffer buffer;
-	  struct _condvar_cleanup_buffer cbuffer;
-	  cbuffer.wseq = wseq;
-	  cbuffer.cond = cond;
-	  cbuffer.mutex = mutex;
-	  cbuffer.private = private;
-	  __pthread_cleanup_push (&buffer, __condvar_cleanup_waiting, &cbuffer);
+      // Now block.
+      struct _pthread_cleanup_buffer buffer;
+      struct _condvar_cleanup_buffer cbuffer;
+      cbuffer.wseq = wseq;
+      cbuffer.cond = cond;
+      cbuffer.mutex = mutex;
+      cbuffer.private = private;
+      __pthread_cleanup_push (&buffer, __condvar_cleanup_waiting, &cbuffer);
 
-	  if (abstime == NULL)
-	    {
-	      /* Block without a timeout.  */
-	      err = futex_wait_cancelable (
-		  cond->__data.__g_signals + g, 0, private);
-	    }
-	  else
-	    {
-	      /* Block, but with a timeout.
-		 Work around the fact that the kernel rejects negative timeout
-		 values despite them being valid.  */
-	      if (__glibc_unlikely (abstime->tv_sec < 0))
-	        err = ETIMEDOUT;
+      if (abstime == NULL)
+      {
+        /* Block without a timeout.  */
+        err = futex_wait_cancelable(cond->__data.__g_signals + g, 0, private);
+      }
+      else
+      {
+        /* Block, but with a timeout.
+        Work around the fact that the kernel rejects negative timeout
+        values despite them being valid.  */
+        if (__glibc_unlikely (abstime->tv_sec < 0))
+          err = ETIMEDOUT;
+        else if ((flags & __PTHREAD_COND_CLOCK_MONOTONIC_MASK) != 0)
+        {
+          /* CLOCK_MONOTONIC is requested.  */
+          struct timespec rt;
+          if (__clock_gettime (CLOCK_MONOTONIC, &rt) != 0)
+            __libc_fatal ("clock_gettime does not support "
+              "CLOCK_MONOTONIC");
+          /* Convert the absolute timeout value to a relative
+            timeout.  */
+          rt.tv_sec = abstime->tv_sec - rt.tv_sec;
+          rt.tv_nsec = abstime->tv_nsec - rt.tv_nsec;
+          if (rt.tv_nsec < 0)
+          {
+            rt.tv_nsec += 1000000000;
+            --rt.tv_sec;
+          }
+          /* Did we already time out?  */
+          if (__glibc_unlikely (rt.tv_sec < 0))
+            err = ETIMEDOUT;
+          else
+            err = futex_reltimed_wait_cancelable(cond->__data.__g_signals + g, 0, &rt, private);
+        }
+        else
+        {
+          /* Use CLOCK_REALTIME.  */
+          err = futex_abstimed_wait_cancelable(cond->__data.__g_signals + g, 0, abstime, private);
+        }
+      }
 
-	      else if ((flags & __PTHREAD_COND_CLOCK_MONOTONIC_MASK) != 0)
-		{
-		  /* CLOCK_MONOTONIC is requested.  */
-		  struct timespec rt;
-		  if (__clock_gettime (CLOCK_MONOTONIC, &rt) != 0)
-		    __libc_fatal ("clock_gettime does not support "
-				  "CLOCK_MONOTONIC");
-		  /* Convert the absolute timeout value to a relative
-		     timeout.  */
-		  rt.tv_sec = abstime->tv_sec - rt.tv_sec;
-		  rt.tv_nsec = abstime->tv_nsec - rt.tv_nsec;
-		  if (rt.tv_nsec < 0)
-		    {
-		      rt.tv_nsec += 1000000000;
-		      --rt.tv_sec;
-		    }
-		  /* Did we already time out?  */
-		  if (__glibc_unlikely (rt.tv_sec < 0))
-		    err = ETIMEDOUT;
-		  else
-		    err = futex_reltimed_wait_cancelable
-			(cond->__data.__g_signals + g, 0, &rt, private);
-		}
-	      else
-		{
-		  /* Use CLOCK_REALTIME.  */
-		  err = futex_abstimed_wait_cancelable
-		      (cond->__data.__g_signals + g, 0, abstime, private);
-		}
-	    }
+      __pthread_cleanup_pop (&buffer, 0);
 
-	  __pthread_cleanup_pop (&buffer, 0);
+      if (__glibc_unlikely (err == ETIMEDOUT))
+      {
+        __condvar_dec_grefs (cond, g, private);
+        /* If we timed out, we effectively cancel waiting.  Note that
+          we have decremented __g_refs before cancellation, so that a
+          deadlock between waiting for quiescence of our group in
+          __condvar_quiesce_and_switch_g1 and us trying to acquire
+          the lock during cancellation is not possible.  */
+        __condvar_cancel_waiting (cond, seq, g, private);
+        result = ETIMEDOUT;
+        goto done;
+      }
+      else
+        __condvar_dec_grefs (cond, g, private);
 
-	  if (__glibc_unlikely (err == ETIMEDOUT))
-	    {
-	      __condvar_dec_grefs (cond, g, private);
-	      /* If we timed out, we effectively cancel waiting.  Note that
-		 we have decremented __g_refs before cancellation, so that a
-		 deadlock between waiting for quiescence of our group in
-		 __condvar_quiesce_and_switch_g1 and us trying to acquire
-		 the lock during cancellation is not possible.  */
-	      __condvar_cancel_waiting (cond, seq, g, private);
-	      result = ETIMEDOUT;
-	      goto done;
-	    }
-	  else
-	    __condvar_dec_grefs (cond, g, private);
-
-	  /* Reload signals.  See above for MO.  */
-	  signals = atomic_load_acquire (cond->__data.__g_signals + g);
-	}
-
+      /* Reload signals.  See above for MO.  */
+      signals = atomic_load_acquire (cond->__data.__g_signals + g);
     }
+
+  }
   /* Try to grab a signal.  Use acquire MO so that we see an up-to-date value
      of __g1_start below (see spinning above for a similar case).  In
      particular, if we steal from a more recent group, we will also see a
@@ -576,62 +575,61 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
      __g1_start.  */
   uint64_t g1_start = __condvar_load_g1_start_relaxed (cond);
   if (seq < (g1_start >> 1))
+  {
+    /* We potentially stole a signal from a more recent group but we do not
+    know which group we really consumed from.
+    We do not care about groups older than current G1 because they are
+    closed; we could have stolen from these, but then we just add a
+    spurious wake-up for the current groups.
+    We will never steal a signal from current G2 that was really intended
+    for G2 because G2 never receives signals (until it becomes G1).  We
+    could have stolen a signal from G2 that was conservatively added by a
+    previous waiter that also thought it stole a signal -- but given that
+    that signal was added unnecessarily, it's not a problem if we steal
+    it.
+    Thus, the remaining case is that we could have stolen from the current
+    G1, where "current" means the __g1_start value we observed.  However,
+    if the current G1 does not have the same slot index as we do, we did
+    not steal from it and do not need to undo that.  This is the reason
+    for putting a bit with G2's index into__g1_start as well.  */
+    
+    if (((g1_start & 1) ^ 1) == g)
     {
-      /* We potentially stole a signal from a more recent group but we do not
-	 know which group we really consumed from.
-	 We do not care about groups older than current G1 because they are
-	 closed; we could have stolen from these, but then we just add a
-	 spurious wake-up for the current groups.
-	 We will never steal a signal from current G2 that was really intended
-	 for G2 because G2 never receives signals (until it becomes G1).  We
-	 could have stolen a signal from G2 that was conservatively added by a
-	 previous waiter that also thought it stole a signal -- but given that
-	 that signal was added unnecessarily, it's not a problem if we steal
-	 it.
-	 Thus, the remaining case is that we could have stolen from the current
-	 G1, where "current" means the __g1_start value we observed.  However,
-	 if the current G1 does not have the same slot index as we do, we did
-	 not steal from it and do not need to undo that.  This is the reason
-	 for putting a bit with G2's index into__g1_start as well.  */
-      if (((g1_start & 1) ^ 1) == g)
-	{
-	  /* We have to conservatively undo our potential mistake of stealing
-	     a signal.  We can stop trying to do that when the current G1
-	     changes because other spinning waiters will notice this too and
-	     __condvar_quiesce_and_switch_g1 has checked that there are no
-	     futex waiters anymore before switching G1.
-	     Relaxed MO is fine for the __g1_start load because we need to
-	     merely be able to observe this fact and not have to observe
-	     something else as well.
-	     ??? Would it help to spin for a little while to see whether the
-	     current G1 gets closed?  This might be worthwhile if the group is
-	     small or close to being closed.  */
-	  unsigned int s = atomic_load_relaxed (cond->__data.__g_signals + g);
-	  while (__condvar_load_g1_start_relaxed (cond) == g1_start)
-	    {
-	      /* Try to add a signal.  We don't need to acquire the lock
-		 because at worst we can cause a spurious wake-up.  If the
-		 group is in the process of being closed (LSB is true), this
-		 has an effect similar to us adding a signal.  */
-	      if (((s & 1) != 0)
-		  || atomic_compare_exchange_weak_relaxed
-		       (cond->__data.__g_signals + g, &s, s + 2))
-		{
-		  /* If we added a signal, we also need to add a wake-up on
-		     the futex.  We also need to do that if we skipped adding
-		     a signal because the group is being closed because
-		     while __condvar_quiesce_and_switch_g1 could have closed
-		     the group, it might stil be waiting for futex waiters to
-		     leave (and one of those waiters might be the one we stole
-		     the signal from, which cause it to block using the
-		     futex).  */
-		  futex_wake (cond->__data.__g_signals + g, 1, private);
-		  break;
-		}
-	      /* TODO Back off.  */
-	    }
-	}
+      /* We have to conservatively undo our potential mistake of stealing
+        a signal.  We can stop trying to do that when the current G1
+        changes because other spinning waiters will notice this too and
+        __condvar_quiesce_and_switch_g1 has checked that there are no
+        futex waiters anymore before switching G1.
+        Relaxed MO is fine for the __g1_start load because we need to
+        merely be able to observe this fact and not have to observe
+        something else as well.
+        ??? Would it help to spin for a little while to see whether the
+        current G1 gets closed?  This might be worthwhile if the group is
+        small or close to being closed.  */
+      unsigned int s = atomic_load_relaxed (cond->__data.__g_signals + g);
+      while (__condvar_load_g1_start_relaxed (cond) == g1_start)
+      {
+        /* Try to add a signal.  We don't need to acquire the lock
+        because at worst we can cause a spurious wake-up.  If the
+        group is in the process of being closed (LSB is true), this
+        has an effect similar to us adding a signal.  */
+        if (((s & 1) != 0) || atomic_compare_exchange_weak_relaxed(cond->__data.__g_signals + g, &s, s + 2))
+        {
+          /* If we added a signal, we also need to add a wake-up on
+            the futex.  We also need to do that if we skipped adding
+            a signal because the group is being closed because
+            while __condvar_quiesce_and_switch_g1 could have closed
+            the group, it might stil be waiting for futex waiters to
+            leave (and one of those waiters might be the one we stole
+            the signal from, which cause it to block using the
+            futex).  */
+          futex_wake (cond->__data.__g_signals + g, 1, private);
+          break;
+        }
+        /* TODO Back off.  */
+      }
     }
+  }
 
  done:
 

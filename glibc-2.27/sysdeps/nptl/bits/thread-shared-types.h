@@ -161,18 +161,21 @@ struct __pthread_cond_s
   };
   __extension__ union
   {
-    __extension__ unsigned long long int __g1_start;
+    __extension__ unsigned long long int __g1_start;  // LSB is the index of current G2
     struct
     {
       unsigned int __low;
       unsigned int __high;
     } __g1_start32;
   };
-  unsigned int __g_refs[2] __LOCK_ALIGNMENT;
+
+  //__LOCK_ALIGNMENT: 
+  //on all platforms,futexes are four-byte integers that must be aligned on a four-byte boundary.
+  unsigned int __g_refs[2] __LOCK_ALIGNMENT;   //LSB is used as a futex_wake flag
   unsigned int __g_size[2];
-  unsigned int __g1_orig_size;
+  unsigned int __g1_orig_size;  //The 2 LSB are used as a condvar-internal lock.
   unsigned int __wrefs;
-  unsigned int __g_signals[2];
+  unsigned int __g_signals[2];  //LSB is used as the group closed flag of each group
 };
 
 #endif /* _THREAD_SHARED_TYPES_H  */

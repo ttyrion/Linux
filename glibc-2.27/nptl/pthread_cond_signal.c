@@ -78,10 +78,10 @@ __pthread_cond_signal (pthread_cond_t *cond)
       || __condvar_quiesce_and_switch_g1 (cond, wseq, &g1, private))
     {
       /* Add a signal.  Relaxed MO is fine because signaling does not need to
-	 establish a happens-before relation (see above).  We do not mask the
-	 release-MO store when initializing a group in
-	 __condvar_quiesce_and_switch_g1 because we use an atomic
-	 read-modify-write and thus extend that store's release sequence.  */
+      establish a happens-before relation (see above).  We do not mask the
+      release-MO store when initializing a group in
+      __condvar_quiesce_and_switch_g1 because we use an atomic
+      read-modify-write and thus extend that store's release sequence.  */
       atomic_fetch_add_relaxed (cond->__data.__g_signals + g1, 2);
       cond->__data.__g_size[g1]--;
       /* TODO Only set it if there are indeed futex waiters.  */
@@ -90,8 +90,9 @@ __pthread_cond_signal (pthread_cond_t *cond)
 
   __condvar_release_lock (cond, private);
 
+  //wake up 1 thread
   if (do_futex_wake)
-    futex_wake (cond->__data.__g_signals + g1, 1, private);
+    futex_wake(cond->__data.__g_signals + g1, 1, private);
 
   return 0;
 }
