@@ -395,8 +395,9 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
      to synchronize with group reinitialization in
      __condvar_quiesce_and_switch_g1.  */
   uint64_t wseq = __condvar_fetch_add_wseq_acquire (cond, 2);
-  /* Find our group's index.  We always go into what was G2 when we acquired
-     our position.  */
+
+  // Get the index of G2.
+  // A waiter always go into G2 after acquiring its position.
   unsigned int g = wseq & 1;
   uint64_t seq = wseq >> 1;
 
@@ -405,13 +406,19 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
   unsigned int flags = atomic_fetch_add_relaxed (&cond->__data.__wrefs, 8);
   int private = __condvar_get_private (flags);
 
-  /* Now that we are registered as a waiter, we can release the mutex.
-     Waiting on the condvar must be atomic with releasing the mutex, so if
-     the mutex is used to establish a happens-before relation with any
-     signaler, the waiter must be visible to the latter; thus, we release the
-     mutex after registering as waiter.
-     If releasing the mutex fails, we just cancel our registration as a
-     waiter and confirm that we have woken up.  */
+  // Now the current thread is registered as a waiter, we can release the mutex.
+  /*
+     Keep in mind: waiting on the condvar must be atomic with releasing the mutex.
+     This atomic relation between waiting and releasing ensures that:
+        If the mutex is used to establish a happens-before relation with any
+        signaler, the waiter is visible to the latter(signaler).
+        That is, the fact that this thread calling __pthread_cond_wait_common() 
+        is a waiter and eligible to consume a singal is visible to the signaler.
+        So, the mutex must be released after registering this thread as a waiter.
+
+      If releasing the mutex fails, we just cancel our registration as a waiter 
+      and confirm that we have woken up.
+  */
   err = __pthread_mutex_unlock_usercnt (mutex, 0);
   if (__glibc_unlikely (err != 0))
     {
