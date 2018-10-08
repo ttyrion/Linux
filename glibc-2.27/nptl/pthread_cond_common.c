@@ -344,19 +344,36 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
 
   // __g_size may hold a negative value
   // so put the expression this way avoids relying on implementation-defined behavior.
-  // this works correctly for a zero-initialized condvar too
+  // This works correctly for a zero-initialized condvar too
   unsigned int old_orig_size = __condvar_get_orig_size (cond);
   uint64_t old_g1_start = __condvar_load_g1_start_relaxed (cond) >> 1;
   if (((unsigned) (wseq - old_g1_start - old_orig_size) + cond->__data.__g_size[g1 ^ 1]) == 0)
   {
     // Retufn false if G2 is empty, do not switch.
-    // An new empty G1(from G2) would cause a next switch again on the next signal
+    // A new empty G1(from G2) would cause a next switch again on the next signal
     return false;
   }
   
   // Now try to close and quiesce G1
 
-  /*  keep in mind:
+  // Set LSB = true( set the group closed flag): this group would be closed. 
+  // This tells waiters which are about to wait that they shouldn't do that anymore.
+
+  /*
+      This basically serves as an advance notificaton of the upcoming change to __g1_start;
+      waiters interpret it as if __g1_start was larger than their waiter sequence position. 
+      Note the words "upcoming" and "as if": __g1_start is not changed now;
+      See __pthread_cond_wait_common, a waiter does the same(call __condvar_dec_grefs())
+      if the group closed flag was set or __g1_start is larger than its seq.
+
+      That(a waiter cancel blocking by calling __condvar_dec_grefs()) 
+      allows us to change __g1_start after waiting for all existing waiters with group references to leave,
+      which in turn makes recovery after stealing a signal simpler because it then can be skipped
+      if __g1_start indicates that the group is closed (
+      otherwise, we would have to recover always because waiters don't know how big their groups are).
+      Relaxed MO is fine. 
+  */
+  /*  Notes:
       1. Waiters from less recent groups than G1 are not affected, 
          because nothing will change for them apart from __g1_start getting larger.
       2. waiters (New) arriving concurrently with this switching will all go into G2 until we atomically make the switch.  
@@ -366,33 +383,7 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
          and also notifies them that the group is closed. 
          As a result, these waiters will remove their group reference, allowing us to complete switching group roles.
   */
-
-  /*   
-     waiters interpret it as if __g1_start was larger than their waiter
-     sequence position.  This allows us to change __g1_start after waiting
-     for all existing waiters with group references to leave, which in turn
-     makes recovery after stealing a signal simpler because it then can be
-     skipped if __g1_start indicates that the group is closed (otherwise,
-     we would have to recover always because waiters don't know how big their
-     groups are).  Relaxed MO is fine.  */
   
-  // First, set LSB = true( set the group closed flag): this group would be closed.
-  // This tells waiters which are about to wait that they shouldn't do that anymore.
-  /*
-    1.This basically serves as an advance notificaton of the upcoming change to __g1_start;
-      waiters interpret it as if __g1_start was larger than their waiter sequence position. 
-    Note the words "upcoming" and "as if": __g1_start is not changed now.
-    Why say "as if" ? See __pthread_cond_wait_common, a waiter does the same(call __condvar_dec_grefs())
-    if the group closed flag was set or __g1_start is larger than its seq.
-
-    2. That(a waiter cancel blocking by calling __condvar_dec_grefs()) 
-       allows us to change __g1_start after waiting
-     for all existing waiters with group references to leave, which in turn
-     makes recovery after stealing a signal simpler because it then can be
-     skipped if __g1_start indicates that the group is closed (otherwise,
-     we would have to recover always because waiters don't know how big their
-     groups are).  Relaxed MO is fine. 
-  */
   atomic_fetch_or_relaxed (cond->__data.__g_signals + g1, 1);
 
   /* Wait until there are no group references anymore.  The fetch-or operation
@@ -411,6 +402,7 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
      but instead continue to go into the still current G2.  */
 
   // This fetch-or operation set __g_refs[g1] to 0 injecting us into the modification order of __g_refs; 
+
   /*"release MO" ensures:
     1. Waiters incrementing __g_refs(calling __pthread_cond_wait_common()) 
        after our fetch-or see the previous changes to __g_signals(the group closed flag was set).
@@ -429,9 +421,8 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
     
     if ((r >> 1) > 0)
     {
-      /* There is still a waiter after spinning.  Set the wake-request
-        flag and block.  Relaxed MO is fine because this is just about
-        this futex word.  */
+      // Set the wake-request flag and block if there's still waiters after spinning.
+      // Relaxed MO is fine because this is just about this futex word.
       r = atomic_fetch_or_relaxed (cond->__data.__g_refs + g1, 1);
 
       if ((r >> 1) > 0) {
@@ -443,14 +434,16 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
       r = atomic_load_relaxed (cond->__data.__g_refs + g1);
     }
   }
+
   /* Acquire MO so that we synchronize with the release operation that waiters
      use to decrement __g_refs and thus happen after the waiters we waited
      for.  */
   atomic_thread_fence_acquire ();
 
   // Update __g1_start, finish closing this group.
+
   /*
-    keep in mind:
+    Notes:
        old_orig_size can only be zero when we switch groups the first time 
        after a condvar was initialized(filled with 0, G2 was set to 0), 
        in which case G1 will be at index 1 and we will add a value of 1.
@@ -469,7 +462,7 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
 
   // Now reopen the group
 
-  /* keep in mind:
+  /* Notes:
     1. __g_signals[g1] is set to 0 which means that:
        (1)the group closed flag is cleared(thus this group is reopend now).
        (2)the number of signals that can be consumed is set to 0.
