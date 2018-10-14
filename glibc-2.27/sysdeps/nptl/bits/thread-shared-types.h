@@ -171,7 +171,7 @@ struct __pthread_cond_s
 
   //__LOCK_ALIGNMENT: 
   //on all platforms,futexes are four-byte integers that must be aligned on a four-byte boundary.
-  unsigned int __g_refs[2] __LOCK_ALIGNMENT;   //LSB is used as a futex_wake flag
+  unsigned int __g_refs[2] __LOCK_ALIGNMENT;   //LSB is used as the futex_wake-request flag
   unsigned int __g_size[2];
   unsigned int __g1_orig_size;  //The 2 LSB are used as a condvar-internal lock.
   unsigned int __wrefs;
