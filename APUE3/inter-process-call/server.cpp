@@ -11,12 +11,15 @@
 
 int main(int argc, char* arg[]) {
     std::string serverfifo = "serverfifo";
-    int err = mkfifoat(AT_FDCWD, serverfifo.c_str(), S_IRUSR |S_IWUSR);
-    if (err == -1) {
-        std::cout << "mkfifo " << serverfifo << "  failed." << std::endl;
-        return 1;
+    int not_exist = access(serverfifo.c_str(), F_OK);
+    if (not_exist != 0) {
+        int err = mkfifoat(AT_FDCWD, serverfifo.c_str(), S_IRUSR |S_IWUSR);
+        if (err == -1) {
+            std::cout << "mkfifoat " << serverfifo << "  failed." << std::endl;
+            return 1;
+        }
     }
-
+    
     int fifo = openat(AT_FDCWD, serverfifo.c_str(),O_RDWR);
     if (fifo == -1) {
         std::cout << "openat " << serverfifo << "  failed." << std::endl;
@@ -36,10 +39,12 @@ int main(int argc, char* arg[]) {
     int index_of_set = 1;
     int max_fd = fifo;
     while(true) {
-        FD_ZERO(&read_set[index_of_set]);
         index_of_set = index_of_set ^ 1;
+        FD_ZERO(&read_set[index_of_set]);
         FD_SET(STDIN_FILENO, &read_set[index_of_set]);
         FD_SET(fifo, &read_set[index_of_set]);
+
+        memset(buf,0,sizeof(buf));
 
         int fds = select(max_fd + 1, &read_set[index_of_set], NULL, NULL, NULL);
         if (fds == -1) {
@@ -60,9 +65,11 @@ int main(int argc, char* arg[]) {
                 std::string data(buf, strlen(buf));
                 //client data format, "pid=xx"
                 if (data.find("pid") == 0) {
-                    int client_fifo = open(data.substr(4).c_str(),O_WRONLY);
+                    // data has a '\n' at the end.
+                    std::string client_pid = data.substr(4, data.length() - 4 -1).c_str();
+                    int client_fifo = open(client_pid.c_str(),O_WRONLY);
                     if (client_fifo == -1) {
-                        std::cout << "open fifo of " << data << "  failed." << std::endl;
+                        std::cout << "open fifo of " << client_pid << "  failed. errno=" << errno << std::endl;
                     }
                     else {
                         max_fd = MAX(max_fd, client_fifo);
@@ -72,7 +79,7 @@ int main(int argc, char* arg[]) {
             }
 
             if (FD_ISSET(STDIN_FILENO, &read_set[index_of_set])) {
-                memset(buf,0,sizeof(buf));
+                
                 int n = read(STDIN_FILENO, buf, sizeof(buf));
                 if (n > 0 ) {
                     if(strcmp(buf, "q") == 0 || strcmp(buf, "quit") == 0) {
@@ -98,6 +105,7 @@ int main(int argc, char* arg[]) {
     }
 
     close(fifo);
+    unlink(serverfifo.c_str());
 
     return 0;
 }

@@ -12,6 +12,7 @@
 
 int main(int argc, char* arg[]) {
     pid_t pid = getpid();
+    std::cout << "pid=" << pid << std::endl;
     std::string client_fifo = std::to_string(pid);
     int err = mkfifoat(AT_FDCWD, client_fifo.c_str(), S_IRUSR |S_IWUSR);
     if (err == -1) {
@@ -30,6 +31,9 @@ int main(int argc, char* arg[]) {
         std::cout << "openat " << client_fifo << "  failed." << std::endl;
         return 1;
     }
+
+    std::string data = "pid=" + std::to_string(pid) + "\n";
+    write(server_fifo, data.c_str(), data.length());
 
     fd_set read_set;
     FD_ZERO(&read_set);
@@ -77,7 +81,7 @@ int main(int argc, char* arg[]) {
                         break;
                     }
                     else {
-                        write(server_fifo, buf, strlen(buf));
+                        write(fifo, buf, strlen(buf));
                     }
                 }
             }          
@@ -85,6 +89,10 @@ int main(int argc, char* arg[]) {
     }
 
     close(fifo);
+    unlink(client_fifo.c_str());
+
+    close(server_fifo);
+    unlink("serverfifo");
 
     return 0;
 }
