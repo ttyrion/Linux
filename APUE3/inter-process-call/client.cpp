@@ -13,6 +13,9 @@
 int main(int argc, char* arg[]) {
     pid_t pid = getpid();
     std::cout << "pid=" << pid << std::endl;
+    std::cout << "Enter 'connect' to connect to server." << std::endl;
+    std::cout << "Enter 'echo **' to request the remote echo server." << std::endl;
+
     std::string client_fifo = std::to_string(pid);
     int err = mkfifoat(AT_FDCWD, client_fifo.c_str(), S_IRUSR |S_IWUSR);
     if (err == -1) {
@@ -20,20 +23,19 @@ int main(int argc, char* arg[]) {
         return 1;
     }
 
-    int server_fifo = openat(AT_FDCWD, "serverfifo",O_RDWR);
+    int server_fifo = openat(AT_FDCWD, "serverfifo",O_WRONLY);
     if (server_fifo == -1) {
         std::cout << "openat " << "serverfifo" << "  failed." << std::endl;
         return 1;
     }
 
+    // An open for read-only FIFO without O_NONBLOCK flag would block
+    // until some other process opens the FIFO for writing.
     int fifo = openat(AT_FDCWD, client_fifo.c_str(),O_RDWR);
     if (fifo == -1) {
         std::cout << "openat " << client_fifo << "  failed." << std::endl;
         return 1;
     }
-
-    std::string data = "pid=" + std::to_string(pid) + "\n";
-    write(server_fifo, data.c_str(), data.length());
 
     fd_set read_set;
     FD_ZERO(&read_set);
@@ -63,13 +65,13 @@ int main(int argc, char* arg[]) {
         else if(fds > 0) {
             // fd_sets are updated by select
             if (FD_ISSET(fifo, &read_set)) {
+                memset(buf,0,sizeof(buf));
                 int n = read(fifo, buf, sizeof(buf));
                 if (n == 0) {
                     // The other end point of this fifo was closed
                     std::cout << "select failed." << std::endl;
                     return 0;
                 }
-                std::cout << "recv: ";
                 std::cout << buf << std::endl;
             }
 
@@ -77,11 +79,17 @@ int main(int argc, char* arg[]) {
                 memset(buf,0,sizeof(buf));
                 int n = read(STDIN_FILENO, buf, sizeof(buf));
                 if (n > 0 ) {
-                    if(strcmp(buf, "q") == 0 || strcmp(buf, "quit") == 0) {
+                    if(strcmp(buf, "q\n") == 0 || strcmp(buf, "quit\n") == 0) {
                         break;
                     }
                     else {
-                        write(fifo, buf, strlen(buf));
+                        // format: [input] [pid]
+                        std::string request(buf, strlen(buf));
+                        // remove the last '\n'
+                        request.pop_back();
+                        request.push_back(' ');
+                        request += std::to_string(pid);
+                        write(server_fifo, request.c_str(), request.length());
                     }
                 }
             }          
