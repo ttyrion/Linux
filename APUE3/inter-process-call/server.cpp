@@ -1,10 +1,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <poll.h>
 #include <unistd.h>
 #include <string>
 #include <iostream>
 #include <map>
+#include <vector>
 #include <string.h>
 
 #define MAX(a,b) \
@@ -27,6 +29,10 @@ int main(int argc, char* arg[]) {
         return 1;
     }
 
+    char buf[4096] = { 0 };
+    std::map<std::string, int> clients;
+
+#if 0
     fd_set read_set;
     FD_ZERO(&read_set);
     // FD_SET(STDIN_FILENO, &read_set[0]);
@@ -36,9 +42,8 @@ int main(int argc, char* arg[]) {
     // FD_ZERO(&write_set);
     // FD_SET(fifo, &write_set);
 
-    char buf[4096] = { 0 };
     int max_fd = fifo;
-    std::map<std::string, int> clients;
+
     while(true) {
         FD_ZERO(&read_set);
         FD_SET(STDIN_FILENO, &read_set);
@@ -96,6 +101,72 @@ int main(int argc, char* arg[]) {
                     }
                 }
             }          
+        }
+    }
+#endif
+
+    pollfd pfds[2];
+    
+    pfds[0].fd = STDIN_FILENO;
+    pfds[0].events = POLLIN;
+
+    pfds[1].fd = fifo;
+    pfds[1].events = POLLIN;
+
+    while(true) {
+        int readable_fds = poll(pfds, sizeof(pfds)/sizeof(pollfd), -1);
+        if(readable_fds == -1) {
+            std::cout << "poll failed." << std::endl;
+            return 1;
+        }
+        else if (readable_fds > 0) {
+            if(pfds[0].revents & POLLIN) {
+                memset(buf,0,sizeof(buf));
+                int n = read(pfds[0].fd, buf, sizeof(buf));
+                if (n > 0 ) {
+                    if(strcmp(buf, "q\n") == 0 || strcmp(buf, "quit\n") == 0) {
+                        break;
+                    }
+                    else {
+                        //std::cout << buf << std::endl;
+                    }
+                }
+            }
+            
+            if(pfds[1].revents & POLLIN) {
+                memset(buf,0,sizeof(buf));
+                int n = read(fifo, buf, sizeof(buf));
+                if (n == 0) {
+                    // The other end point of this fifo was closed
+                    std::cout << "fifo was closed by client." << std::endl;
+                    continue;
+                }
+                std::cout << "recv: " << buf << std::endl;
+
+                std::string data(buf, strlen(buf));
+                //client data format, "pid=xx"
+                if (data.find("connect") == 0) {
+                    // data has a '\n' at the end.
+                    std::string client_pid = data.substr(8, data.length() - 8).c_str();
+                    int client_fifo = open(client_pid.c_str(),O_WRONLY);
+                    if (client_fifo == -1) {
+                        std::cout << "open fifo of " << client_pid << "  failed. errno=" << errno << std::endl;
+                    }
+                    else {
+                        clients[client_pid] = client_fifo;
+                    }
+                }
+                else if (data.find("echo ") == 0) {
+                    std::string client_pid = data.substr(data.find_last_of(' ') + 1);                    
+                    if(clients.find(client_pid) == clients.end()) {
+                        std::cout << "Please connect to the server first. " << std::endl;                        
+                        continue;
+                    }
+
+                    std::string message = data.substr(5, data.find_last_of(' ') - 4).c_str();
+                    write(clients[client_pid], message.c_str(), message.length());
+                }
+            }
         }
     }
 
