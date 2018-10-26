@@ -32,6 +32,15 @@ int main(int argc, char* arg[]) {
     char buf[4096] = { 0 };
     std::map<std::string, int> clients;
 
+    auto do_clean = [&fifo, &serverfifo, &clients] {
+        close(fifo);
+        unlink(serverfifo.c_str());
+
+        for (auto var : clients) {
+            close(var.second);
+        }
+    };
+
 #if 0
     fd_set read_set;
     FD_ZERO(&read_set);
@@ -52,6 +61,7 @@ int main(int argc, char* arg[]) {
         int fds = select(max_fd + 1, &read_set, NULL, NULL, NULL);
         if (fds == -1) {
             std::cout << "select failed." << std::endl;
+            do_clean();
             return 1;
         }
         else if(fds > 0) {
@@ -61,8 +71,8 @@ int main(int argc, char* arg[]) {
                 int n = read(fifo, buf, sizeof(buf));
                 if (n == 0) {
                     // The other end point of this fifo was closed
-                    std::cout << "select failed." << std::endl;
-                    return 0;
+                    std::cout << "fifo was closed by client." << std::endl;
+                    continue;
                 }
                 std::cout << "recv: " << buf << std::endl;
 
@@ -117,6 +127,7 @@ int main(int argc, char* arg[]) {
         int readable_fds = poll(pfds, sizeof(pfds)/sizeof(pollfd), -1);
         if(readable_fds == -1) {
             std::cout << "poll failed." << std::endl;
+            do_clean();
             return 1;
         }
         else if (readable_fds > 0) {
@@ -169,13 +180,8 @@ int main(int argc, char* arg[]) {
             }
         }
     }
-
-    close(fifo);
-    unlink(serverfifo.c_str());
-
-    for (auto var : clients) {
-        close(var.second);
-    }
+    
+    do_clean();
 
     return 0;
 }
