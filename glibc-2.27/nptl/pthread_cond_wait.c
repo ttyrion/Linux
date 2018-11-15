@@ -144,7 +144,7 @@ __condvar_cancel_waiting (pthread_cond_t *cond, uint64_t seq, unsigned int g,
     }
 }
 
-/* Wake up any signalers that might be waiting.  */
+/* Wake up any signalers that might be waiting for all the waiters in this group leaving.  */
 static void
 __condvar_dec_grefs (pthread_cond_t *cond, unsigned int g, int private)
 {
@@ -394,6 +394,10 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
      establishes a total order of waiters/signals.  We do need acquire MO
      to synchronize with group reinitialization in
      __condvar_quiesce_and_switch_g1.  */
+  
+  // The position in wseq would not be reused.
+  // i.e., the wseq of cond would not be decrease anywhere.
+  // That is why we cannot mix wseq and wrefs.
   uint64_t wseq = __condvar_fetch_add_wseq_acquire (cond, 2);
 
   // Get the index of G2.
@@ -569,6 +573,11 @@ __pthread_cond_wait_common (pthread_cond_t *cond, pthread_mutex_t *mutex,
     }
 
   }
+
+  
+  // Here we may be in a new G1, but not the old G2!(they have the same group slot.)
+  // Consume a signal in group g.
+
   /* Try to grab a signal.  Use acquire MO so that we see an up-to-date value
      of __g1_start below (see spinning above for a similar case).  In
      particular, if we steal from a more recent group, we will also see a

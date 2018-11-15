@@ -349,8 +349,8 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
   uint64_t old_g1_start = __condvar_load_g1_start_relaxed (cond) >> 1;
   if (((unsigned) (wseq - old_g1_start - old_orig_size) + cond->__data.__g_size[g1 ^ 1]) == 0)
   {
-    // Retufn false if G2 is empty, do not switch.
     // A new empty G1(from G2) would cause a next switch again on the next signal
+    // So retufn false if G2 is empty, do not switch.
     return false;
   }
   
@@ -441,18 +441,14 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
   atomic_thread_fence_acquire ();
 
   // Update __g1_start, finish closing this group.
-
+  // LSB is set with the index of the new G2.
   /*
     Notes:
        old_orig_size can only be zero when we switch groups the first time 
        after a condvar was initialized(filled with 0, G2 was set to 0), 
        in which case G1 will be at index 1 and we will add a value of 1.
-      
        So the value we add will never be negative!
-
        See above for why this takes place after waiting for quiescence of the group.
-
-       Why?
   */
 
   // Relaxed MO is fine because the change comes with no additional constraints 
@@ -461,7 +457,6 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
 
 
   // Now reopen the group
-
   /* Notes:
     1. __g_signals[g1] is set to 0 which means that:
        (1)the group closed flag is cleared(thus this group is reopend now).
@@ -481,6 +476,8 @@ __condvar_quiesce_and_switch_g1 (pthread_cond_t *cond, uint64_t wseq,
      We can now publish the group switch by flipping the G2 index in __wseq.
      Release MO so that this synchronizes with the acquire MO operation
      waiters use to obtain a position in the waiter sequence.  */
+
+  // switch the index of G1 and G2
   wseq = __condvar_fetch_xor_wseq_release (cond, 1) >> 1;
   g1 ^= 1;
   *g1index ^= 1;
